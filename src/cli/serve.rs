@@ -21,12 +21,17 @@ pub struct ServeArgs {
     /// Build before serving
     #[arg(long, default_value = "true")]
     pub build: bool,
+
+    /// Host address to bind to (default: 127.0.0.1, use 0.0.0.0 for Docker)
+    #[arg(long)]
+    pub host: Option<String>,
 }
 
 const DEFAULT_PORT: u16 = 3000;
 
 pub fn run(args: &ServeArgs, site_filter: Option<&str>) -> anyhow::Result<()> {
     let cwd = std::env::current_dir()?;
+    let host = args.host.as_deref().unwrap_or("127.0.0.1");
 
     // Check for workspace context
     if let Some(ws_root) = workspace::find_workspace_root(&cwd) {
@@ -52,7 +57,7 @@ pub fn run(args: &ServeArgs, site_filter: Option<&str>) -> anyhow::Result<()> {
                 .find_site(site_name)
                 .ok_or_else(|| anyhow::anyhow!("unknown site '{site_name}' in workspace"))?;
             let (config, paths) = workspace::load_site_in_workspace(&ws_root, ws_site)?;
-            let handle = server::start(&config, &paths, port, true, auto_increment)?;
+            let handle = server::start(&config, &paths, port, true, auto_increment, host)?;
 
             human::info(&format!(
                 "Serving site '{site_name}'. Type \"help\" for commands, \"stop\" to quit (port {})",
@@ -64,7 +69,7 @@ pub fn run(args: &ServeArgs, site_filter: Option<&str>) -> anyhow::Result<()> {
         }
 
         // Workspace dev server (all sites)
-        let handle = workspace::server::start(&ws_config, &ws_root, port, auto_increment)?;
+        let handle = workspace::server::start(&ws_config, &ws_root, port, auto_increment, host)?;
 
         human::info(&format!(
             "Type \"stop\" to quit (server on port {})",
@@ -133,7 +138,7 @@ pub fn run(args: &ServeArgs, site_filter: Option<&str>) -> anyhow::Result<()> {
 
     let port = args.port.unwrap_or(DEFAULT_PORT);
     let auto_increment = args.port.is_none();
-    let handle = server::start(&config, &paths, port, true, auto_increment)?;
+    let handle = server::start(&config, &paths, port, true, auto_increment, host)?;
 
     human::info(&format!(
         "Type \"help\" for commands, \"stop\" to quit (server on port {})",

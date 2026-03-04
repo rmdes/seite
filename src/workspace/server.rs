@@ -63,14 +63,15 @@ pub fn start(
     ws_root: &Path,
     port: u16,
     auto_increment: bool,
+    host: &str,
 ) -> Result<WorkspaceServerHandle> {
     let (server, actual_port) = if auto_increment {
-        try_bind_auto(port)?
+        try_bind_auto(host, port)?
     } else {
-        if !port_is_available(port) {
+        if !port_is_available(host, port) {
             return Err(PageError::Server(format!("port {port} is already in use")));
         }
-        let addr = format!("127.0.0.1:{port}");
+        let addr = format!("{host}:{port}");
         let server = Server::http(&addr).map_err(|e| {
             PageError::Server(format!("failed to start server on port {port}: {e}"))
         })?;
@@ -97,12 +98,10 @@ pub fn start(
 
     if actual_port != port {
         human::info(&format!(
-            "Port {port} in use, serving at http://localhost:{actual_port}"
+            "Port {port} in use, serving at http://{host}:{actual_port}"
         ));
     } else {
-        human::success(&format!(
-            "Serving workspace at http://localhost:{actual_port}"
-        ));
+        human::success(&format!("Serving workspace at http://{host}:{actual_port}"));
     }
 
     // Print site routes
@@ -419,9 +418,9 @@ fn watch_and_rebuild_workspace(
     }
 }
 
-fn port_is_available(port: u16) -> bool {
+fn port_is_available(host: &str, port: u16) -> bool {
     TcpStream::connect_timeout(
-        &format!("127.0.0.1:{port}")
+        &format!("{host}:{port}")
             .parse()
             .expect("valid socket address"),
         Duration::from_millis(100),
@@ -429,12 +428,12 @@ fn port_is_available(port: u16) -> bool {
     .is_err()
 }
 
-fn try_bind_auto(start_port: u16) -> Result<(Server, u16)> {
+fn try_bind_auto(host: &str, start_port: u16) -> Result<(Server, u16)> {
     for port in start_port..start_port.saturating_add(100) {
-        if !port_is_available(port) {
+        if !port_is_available(host, port) {
             continue;
         }
-        match Server::http(format!("127.0.0.1:{port}")) {
+        match Server::http(format!("{host}:{port}")) {
             Ok(server) => return Ok((server, port)),
             Err(_) => continue,
         }
